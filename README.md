@@ -25,6 +25,8 @@ Do not commit a real MongoDB connection string into a GitHub file. Add it as the
 
 Set `MONGODB_DATABASE` to the desired database name. Set `APP_SECRET` to a different, randomly generated value in Render; never reuse a sample value. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_EMAIL` in the Render environment so OTP delivery works.
 
+For Atlas, `MONGODB_URI` must be the complete value that starts with `mongodb+srv://` or `mongodb://`. Paste only the URI into the Render value field, not `MONGODB_URI=` or surrounding Markdown/code formatting. The application trims common environment-file wrappers and reports malformed values without exposing the URI. The Docker image reads Render's `PORT` at startup and defaults to port 10000; do not override `PORT` unless you intend to use another port.
+
 ## Run the tests
 
 ```powershell
