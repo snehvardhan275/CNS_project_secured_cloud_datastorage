@@ -26,3 +26,5 @@ services:
         sync: false
       - key: SMTP_USE_TLS
         value: "true"
+      - key: SMTP_USE_SSL
+        value: "false"

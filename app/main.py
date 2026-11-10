@@ -1,5 +1,7 @@
 import re
+import logging
 import smtplib
+import ssl
 from contextlib import asynccontextmanager
 from datetime import timedelta, timezone
 from email.message import EmailMessage
@@ -25,6 +27,12 @@ from app.database import connect_database
 STATIC_DIR = Path(__file__).parent / "static"
 USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]{3,32}$")
 SESSION_COOKIE = "secure_session"
+logger = logging.getLogger(__name__)
+
+
+class EmailDeliveryError(Exception):
+    def __init__(self, category: str):
+        self.category = category
 
 
 @asynccontextmanager
@@ -35,8 +43,11 @@ async def lifespan(app: FastAPI):
     if settings.mongodb_uri:
         if len(settings.app_secret.encode("utf-8")) < 32:
             raise RuntimeError("APP_SECRET must contain at least 32 bytes in configured deployments")
-        if settings.production and (not settings.smtp_host or not settings.smtp_from_email or not settings.smtp_use_tls):
-            raise RuntimeError("Production requires a configured TLS-enabled SMTP sender")
+        if settings.production and not all((settings.smtp_host, settings.smtp_username,
+                                            settings.smtp_password, settings.smtp_from_email)):
+            raise RuntimeError("Production email requires SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL")
+        if settings.production and settings.smtp_use_tls == settings.smtp_use_ssl:
+            raise RuntimeError("Production email must enable exactly one of SMTP_USE_TLS or SMTP_USE_SSL")
         client, database = connect_database(settings)
         app.state.mongo_client, app.state.db = client, database
     try:
@@ -78,19 +89,50 @@ def get_database(request: Request) -> Database:
 
 
 def send_otp_email(settings: Settings, email: str, otp: str, purpose: str) -> None:
-    if not all((settings.smtp_host, settings.smtp_from_email)):
-        raise HTTPException(status_code=503, detail="Email delivery is not configured")
+    if not all((settings.smtp_host, settings.smtp_username, settings.smtp_password, settings.smtp_from_email)):
+        raise EmailDeliveryError("missing_configuration")
     message = EmailMessage()
     message["Subject"] = "Your Secure Cloud verification code"
     message["From"] = settings.smtp_from_email
     message["To"] = email
     message.set_content(f"Your {purpose} verification code is {otp}. It expires in five minutes. If you did not request this, ignore this email.")
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
-        if settings.smtp_use_tls:
-            server.starttls()
-        if settings.smtp_username:
-            server.login(settings.smtp_username, settings.smtp_password)
-        server.send_message(message)
+    try:
+        if settings.smtp_use_ssl:
+            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15,
+                                  context=ssl.create_default_context()) as server:
+                server.login(settings.smtp_username, settings.smtp_password)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                if settings.smtp_use_tls:
+                    server.starttls(context=ssl.create_default_context())
+                server.login(settings.smtp_username, settings.smtp_password)
+                server.send_message(message)
+    except smtplib.SMTPAuthenticationError:
+        raise EmailDeliveryError("authentication_rejected") from None
+    except smtplib.SMTPRecipientsRefused:
+        raise EmailDeliveryError("recipient_rejected") from None
+    except smtplib.SMTPSenderRefused:
+        raise EmailDeliveryError("sender_rejected") from None
+    except (smtplib.SMTPException, ssl.SSLError, OSError):
+        raise EmailDeliveryError("transport_failure") from None
+
+
+def _deliver_otp_email(settings: Settings, email: str, otp: str, purpose: str) -> None:
+    try:
+        send_otp_email(settings, email, otp, purpose)
+    except EmailDeliveryError as error:
+        logger.error("OTP email delivery failed (%s)", error.category)
+        raise HTTPException(
+            status_code=503,
+            detail="Email delivery is unavailable. Check the SMTP settings and try again later.",
+        ) from None
+    except Exception:
+        logger.error("OTP email delivery failed (unexpected error)")
+        raise HTTPException(
+            status_code=503,
+            detail="Email delivery is unavailable. Check the SMTP settings and try again later.",
+        ) from None
 
 
 class RegisterStart(BaseModel):
@@ -248,10 +290,10 @@ def register_start(payload: RegisterStart, request: Request, db: Database = Depe
     code, challenge_id = _create_otp(db, email, "registration", _ip(request), settings)
     db.email_otps.update_one({"_id": challenge_id}, {"$set": {"username_normalized": username.lower()}})
     try:
-        send_otp_email(settings, email, code, "registration")
-    except Exception:
+        _deliver_otp_email(settings, email, code, "registration")
+    except HTTPException:
         db.email_otps.delete_one({"_id": challenge_id})
-        raise HTTPException(status_code=503, detail="We could not send a verification email. Please try again later") from None
+        raise
     return {"message": "If the address can receive mail, a verification code is on its way."}
 
 
@@ -309,10 +351,10 @@ def login_password(payload: LoginPassword, request: Request, db: Database = Depe
     _check_rate(db, email, _ip(request), "login", settings)
     code, challenge_id = _create_otp(db, email, "login", _ip(request), settings)
     try:
-        send_otp_email(settings, email, code, "sign in")
-    except Exception:
+        _deliver_otp_email(settings, email, code, "sign in")
+    except HTTPException:
         db.email_otps.delete_one({"_id": challenge_id})
-        raise HTTPException(status_code=503, detail="We could not send a sign-in email. Please try again later") from None
+        raise
     return {"message": "A sign in code was sent to your registered email.", "challenge_id": str(challenge_id)}
 
 

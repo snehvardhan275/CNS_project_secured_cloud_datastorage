@@ -146,3 +146,16 @@ def test_private_auth_response_is_never_cached(client):
     response = client.get("/auth/me")
     assert response.status_code == 401
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_email_provider_failure_is_logged_as_safe_category(client, caplog, monkeypatch):
+    def fail_delivery(*args, **kwargs):
+        raise main.EmailDeliveryError("authentication_rejected")
+
+    monkeypatch.setattr(main, "send_otp_email", fail_delivery)
+    response = client.post("/auth/register/start", json={"username": "alice", "email": "alice@example.com"})
+    assert response.status_code == 503
+    assert "SMTP settings" in response.json()["detail"]
+    assert "authentication_rejected" in caplog.text
+    assert "alice@example.com" not in caplog.text
+    assert client.app.state.db.email_otps.count_documents({}) == 0

@@ -23,7 +23,7 @@ Open <http://localhost:8000>. The health endpoint is <http://localhost:8000/heal
 
 Do not commit a real MongoDB connection string into a GitHub file. Add it as the `MONGODB_URI` environment variable in the Render service dashboard. The checked-in `render.yaml` declares the variable as `sync: false`, so Render prompts for its value. For local runs, put it in the untracked `.env` file. `.env.example` contains only a local placeholder.
 
-Set `MONGODB_DATABASE` to the desired database name. Set `APP_SECRET` to a different, randomly generated value in Render; never reuse a sample value. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_EMAIL` in the Render environment so OTP delivery works.
+Set `MONGODB_DATABASE` to the desired database name. Set `APP_SECRET` to a different, randomly generated value in Render; never reuse a sample value. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_EMAIL` in the Render environment so OTP delivery works. The sender must allow SMTP authentication. For port 587 use `SMTP_USE_TLS=true` and `SMTP_USE_SSL=false`; for port 465 use `SMTP_USE_TLS=false` and `SMTP_USE_SSL=true`.
 
 For Atlas, `MONGODB_URI` must be the complete value that starts with `mongodb+srv://` or `mongodb://`. Paste only the URI into the Render value field, not `MONGODB_URI=` or surrounding Markdown/code formatting. The application trims common environment-file wrappers and reports malformed values without exposing the URI. The Docker image reads Render's `PORT` at startup and defaults to port 10000; do not override `PORT` unless you intend to use another port.
 
