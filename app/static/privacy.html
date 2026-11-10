@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Privacy and security information for the Secure Cloud Storage academic prototype.">
+  <title>Privacy and security notice · Secure Cloud Storage</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="auth-layout">
+    <a class="brand auth-brand" href="/"><span class="brand-mark">S</span> Secure Cloud <span class="brand-muted">Storage</span></a>
+    <article class="auth-card">
+      <div class="step-label">ACADEMIC PROTOTYPE</div>
+      <h1>Privacy and security notice</h1>
+      <p class="form-intro">This site is a student project prototype. It is not a production cloud-storage service or a formal security product.</p>
+      <h2>What this version does</h2>
+      <p class="form-intro">This version supports account registration and email verification. File upload, cloud file storage, and file encryption are not enabled yet.</p>
+      <h2>Information used for accounts</h2>
+      <p class="form-intro">The prototype stores your username, email address, an Argon2id password hash, and account creation time. It sends verification and sign-in codes by email. The server stores a keyed hash of each code rather than the code itself. Session records expire after eight hours; verification codes expire after five minutes.</p>
+      <h2>Use a unique password</h2>
+      <p class="form-intro">Do not reuse a password from another site. This prototype has not undergone an independent security audit. Do not enter financial, medical, or other highly sensitive information.</p>
+      <h2>Project source and contact</h2>
+      <p class="form-intro">The source code and project history are available in the <a href="https://github.com/snehvardhan275/CNS_project_secured_cloud_datastorage" rel="noopener noreferrer">project repository</a>. Report security concerns through its Issues page.</p>
+      <p class="form-foot"><a href="/">Return to Secure Cloud Storage</a></p>
+    </article>
+  </main>
+</body>
+</html>

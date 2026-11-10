@@ -134,12 +134,15 @@ def test_s1_14_health_route_reports_database_readiness(client):
 
 
 def test_frontend_pages_and_security_headers_are_served(client):
-    for page in ("register.html", "verify-register.html", "create-password.html", "login.html", "verify-login.html", "dashboard.html"):
+    for page in ("register.html", "verify-register.html", "create-password.html", "login.html", "verify-login.html", "dashboard.html", "privacy.html"):
         response = client.get(f"/static/{page}")
         assert response.status_code == 200
         assert "X-Content-Type-Options" in response.headers
         assert "Content-Security-Policy" in response.headers
         assert response.headers["cache-control"] == "no-cache"
+        assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
+        assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
 
 
 def test_private_auth_response_is_never_cached(client):
