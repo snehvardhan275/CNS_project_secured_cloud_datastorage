@@ -46,8 +46,6 @@ async def lifespan(app: FastAPI):
         if settings.production and not all((settings.smtp_host, settings.smtp_username,
                                             settings.smtp_password, settings.smtp_from_email)):
             raise RuntimeError("Production email requires SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL")
-        if settings.production and settings.smtp_use_tls == settings.smtp_use_ssl:
-            raise RuntimeError("Production email must enable exactly one of SMTP_USE_TLS or SMTP_USE_SSL")
         client, database = connect_database(settings)
         app.state.mongo_client, app.state.db = client, database
     try:
@@ -97,17 +95,14 @@ def send_otp_email(settings: Settings, email: str, otp: str, purpose: str) -> No
     message["To"] = email
     message.set_content(f"Your {purpose} verification code is {otp}. It expires in five minutes. If you did not request this, ignore this email.")
     try:
-        if settings.smtp_use_ssl:
-            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15,
-                                  context=ssl.create_default_context()) as server:
-                server.login(settings.smtp_username, settings.smtp_password)
-                server.send_message(message)
-        else:
-            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-                if settings.smtp_use_tls:
-                    server.starttls(context=ssl.create_default_context())
-                server.login(settings.smtp_username, settings.smtp_password)
-                server.send_message(message)
+        context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.ehlo()
+            server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(message)
     except smtplib.SMTPAuthenticationError:
         raise EmailDeliveryError("authentication_rejected") from None
     except smtplib.SMTPRecipientsRefused:

@@ -21,8 +21,6 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from_email: str = ""
-    smtp_use_tls: bool = True
-    smtp_use_ssl: bool = False
 
     @property
     def production(self) -> bool:
